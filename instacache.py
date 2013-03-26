@@ -4,11 +4,15 @@ import argparse, json, urllib, urlparse, sys, os, errno, sqlite3, re
 import oauth2 as oauth
 import ConfigParser as cp
 import subprocess as sp
+import unicodedata
 from collections import namedtuple
 
 Bookmark = namedtuple('Bookmark', ['id', 'url', 'title', 'description'])
 
 instapaper_URL = "https://www.instapaper.com/api/1"
+
+def my_print(string):
+    print(unicodedata.normalize('NFKD', string).encode('ascii', 'ignore'))
 
 def make_sure_path_exists(path):
     try:
@@ -38,8 +42,8 @@ def login(args):
                                  body=urllib.urlencode(payload))
 
     if resp['status'] != '200':
-        print('Did not successfully generate a token, error:')
-        print(token)
+        my_print(u'Did not successfully generate a token, error:')
+        my_print(token)
         sys.exit(1)
 
     access_token = dict(urlparse.parse_qsl(token))
@@ -103,7 +107,7 @@ def filenameize(string):
     return pattern.sub('', string)
 
 def backup_bm_text(bookmark, conn, client, target_dir):
-    print("Backing up text of article %s" % (bookmark.title))
+    my_print(u"Backing up text of article %s" % (bookmark.title))
     payload = {'bookmark_id': bookmark.id }
 
     rhead, rbody = client.request("%s/bookmarks/get_text" % (instapaper_URL),
@@ -117,11 +121,11 @@ def backup_bm_text(bookmark, conn, client, target_dir):
         bm_text_done(conn, bookmark)
 
     else:
-        print("Error getting article %s" % (bookmark.title))
-        print rhead
+        my_print(u"Error getting article %s" % (bookmark.title))
+        my_print(rhead)
 
 def backup_bm_html(bookmark, conn, client, target_dir):
-    print("Backing up html of article %s" % (bookmark.title))
+    my_print(u"Backing up html of article %s" % (bookmark.title))
     call = ["wget",
             "--level=10",
             "--no-parent",
@@ -143,13 +147,13 @@ def backup_bm_html(bookmark, conn, client, target_dir):
 def backup_from_db(conn, target_dir, client):
     todo_text_bu = bookmarks_wo_text_backup(conn)
 
-    print("Backing up %i to text" % (len(todo_text_bu)))
+    my_print(u"Backing up %i to text" % (len(todo_text_bu)))
 
     for b in todo_text_bu:
         backup_bm_text(b, conn, client, target_dir)
 
     todo_html_bu = bookmarks_wo_html_backup(conn)
-    print("Backing up %i to html" % (len(todo_html_bu)))
+    my_print(u"Backing up %i to html" % (len(todo_html_bu)))
 
     for b in todo_html_bu:
         backup_bm_html(b, conn, client, target_dir)
@@ -175,11 +179,11 @@ def backup(args):
                               i["title"],
                               i["description"]) for i in rbody if i["type"] == "bookmark"]
 
-        print("New bookmarks count: %i" % (len(bookmarks)))
+        my_print(u"New bookmarks count: %i" % (len(bookmarks)))
 
         add_to_db(conn, bookmarks)
     else:
-        print("Error, could not retrieve bookmarks list!")
+        my_print(u"Error, could not retrieve bookmarks list!")
         sys.exit(1)
 
     backup_from_db(conn, "%s/%s" % (args.d, args.f), client)
@@ -207,8 +211,8 @@ def authed_client(args):
     check_auth = client.request("%s/account/verify_credentials" % (instapaper_URL),
                                 method="POST")
     if check_auth[0]['status'] != '200':
-        print("Error: looks like you're not authenticated...")
-        print check_auth
+        my_print(u"Error: looks like you're not authenticated...")
+        my_print(check_auth)
         sys.exit(1)
 
     return client
@@ -220,7 +224,7 @@ def get_user(args):
     resp = client.request("%s/account/verify_credentials" % (instapaper_URL),
                           method="POST")
 
-    print(resp)
+    my_print(resp)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(prog='instacache', description='Cache Instapaper articles')
