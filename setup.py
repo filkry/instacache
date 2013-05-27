@@ -1,11 +1,11 @@
-from distutils.core import setup
+from setuptools import setup
 
 setup(
     name='instacache',
     version='0.2',
     author='Fil Krynicki',
     author_email='filipkrynicki@gmail.com',
-    packages=['instacache'],
+    scripts=['bin/instacache.py'],
     license='LICENSE.txt',
     description='Simple program to back up Instapaper favorites in plaintext and html form.',
     long_description=open('README.md').read(),
