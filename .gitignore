@@ -1,1 +1,6 @@
 *.swp
+instacache.egg-info
+MANIFEST
+build
+dist
+.vagrant

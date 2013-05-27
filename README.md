@@ -7,8 +7,15 @@ Python script to back up clean text and full html versions of Instapaper bookmar
 
 * Python 2.x
 * wget (available through every Linux dist package manager, or [homebrew](http://mxcl.github.com/homebrew/) on Mac.
-* [python2-oauth](https://github.com/simplegeo/python-oauth2)
 * Instapaper [subscription](http://www.instapaper.com/subscription) for access to full API
+
+## Installation
+
+The recommended method of installation is via pip:
+
+    pip install instacache
+
+This will place instacache.py in your bin folder for easy access.
 
 ## Usage
 To use Instacache, you need an Instapaper subscription, which gives access to the full developer API as well as a consumer key and secret for OAuth. While I could conceivably ship mine with Instacache as this is an "app", I don't know how to keep that information secret in an open python script.
