@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='instacache',
-    version='0.2.1',
+    version='0.2.2',
     author='Fil Krynicki',
     author_email='filipkrynicki@gmail.com',
     url='https://github.com/thefil/instacache',

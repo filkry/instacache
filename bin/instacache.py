@@ -12,7 +12,7 @@ Bookmark = namedtuple('Bookmark', ['id', 'url', 'title', 'description'])
 instapaper_URL = "https://www.instapaper.com/api/1"
 
 def my_print(string):
-    print(unicodedata.normalize('NFKD', string).encode('ascii', 'ignore'))
+    print(string)
 
 def make_sure_path_exists(path):
     try:
@@ -107,7 +107,7 @@ def filenameize(string):
     return pattern.sub('', string)
 
 def backup_bm_text(bookmark, conn, client, target_dir):
-    my_print(u"Backing up text of article %s" % (bookmark.title))
+    my_print(u"Backing up text of article %s" % (bookmark.url))
     payload = {'bookmark_id': bookmark.id }
 
     rhead, rbody = client.request("%s/bookmarks/get_text" % (instapaper_URL),
@@ -121,11 +121,11 @@ def backup_bm_text(bookmark, conn, client, target_dir):
         bm_text_done(conn, bookmark)
 
     else:
-        my_print(u"Error getting article %s" % (bookmark.title))
+        my_print(u"Error getting article %s" % (bookmark.url))
         my_print(rhead)
 
 def backup_bm_html(bookmark, conn, client, target_dir):
-    my_print(u"Backing up html of article %s" % (bookmark.title))
+    my_print(u"Backing up html of article %s" % (bookmark.url))
     call = ["wget",
             "--level=10",
             "--no-parent",
