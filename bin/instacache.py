@@ -5,14 +5,14 @@ import oauth2 as oauth
 import ConfigParser as cp
 import subprocess as sp
 import unicodedata
+import logging
 from collections import namedtuple
 
 Bookmark = namedtuple('Bookmark', ['id', 'url', 'title', 'description'])
 
 instapaper_URL = "https://www.instapaper.com/api/1"
 
-def my_print(string):
-    print(string)
+log = None
 
 def make_sure_path_exists(path):
     try:
@@ -42,8 +42,8 @@ def login(args):
                                  body=urllib.urlencode(payload))
 
     if resp['status'] != '200':
-        my_print(u'Did not successfully generate a token, error:')
-        my_print(token)
+        log.error('Did not successfully generate an oauth token. Check credentials')
+        log.debug(token)
         sys.exit(1)
 
     access_token = dict(urlparse.parse_qsl(token))
@@ -107,7 +107,7 @@ def filenameize(string):
     return pattern.sub('', string)
 
 def backup_bm_text(bookmark, conn, client, target_dir):
-    my_print(u"Backing up text of article %s" % (bookmark.url))
+    log.info(u'Backing up text of article %s' % (bookmark.url))
     payload = {'bookmark_id': bookmark.id }
 
     rhead, rbody = client.request("%s/bookmarks/get_text" % (instapaper_URL),
@@ -119,13 +119,15 @@ def backup_bm_text(bookmark, conn, client, target_dir):
         with open("%s/%s-text.html" % (target_dir, fn), 'w') as f:
             f.write(rbody)
         bm_text_done(conn, bookmark)
+        return True
 
     else:
-        my_print(u"Error getting article %s" % (bookmark.url))
-        my_print(rhead)
+        log.warning('Could not retrieve text of article %s' % (bookmark.url))
+        log.debug(rhead)
+        return False
 
 def backup_bm_html(bookmark, conn, client, target_dir):
-    my_print(u"Backing up html of article %s" % (bookmark.url))
+    log.info(u'Backing up html of article %s' % (bookmark.url))
     call = ["wget",
             "--level=10",
             "--no-parent",
@@ -139,24 +141,33 @@ def backup_bm_html(bookmark, conn, client, target_dir):
     #print sp.check_output(call)
     try:
         sp.check_call(call, stdout=devnull, stderr=devnull)
+        bm_html_done(conn, bookmark)
+        return True
     except sp.CalledProcessError, e:
+        log.error('Could not retrieve html of article %s' % bookmark.url)
+        log.debug(e)
         if e.returncode <= 4:
             raise
-    bm_html_done(conn, bookmark)
+        return False
     
 def backup_from_db(conn, target_dir, client):
+    all_good = True
+
     todo_text_bu = bookmarks_wo_text_backup(conn)
 
-    my_print(u"Backing up %i to text" % (len(todo_text_bu)))
+    log.info(u"Backuping up %i bookmarks to text" % (len(todo_text_bu)))
 
     for b in todo_text_bu:
-        backup_bm_text(b, conn, client, target_dir)
+        all_good = backup_bm_text(b, conn, client, target_dir) and all_good
 
     todo_html_bu = bookmarks_wo_html_backup(conn)
-    my_print(u"Backing up %i to html" % (len(todo_html_bu)))
+    log.info(u"Backing up %i bookmarks to html" % (len(todo_html_bu)))
 
     for b in todo_html_bu:
-        backup_bm_html(b, conn, client, target_dir)
+        all_good = backup_bm_html(b, conn, client, target_dir) and all_good
+
+    if not all_good:
+        log.warning(u"Not all backups completed successfully")
 
 def backup(args):
     client = authed_client(args)
@@ -179,11 +190,11 @@ def backup(args):
                               i["title"],
                               i["description"]) for i in rbody if i["type"] == "bookmark"]
 
-        my_print(u"New bookmarks count: %i" % (len(bookmarks)))
+        log.info(u"New bookmarks count: %s" % (len(bookmarks)))
 
         add_to_db(conn, bookmarks)
     else:
-        my_print(u"Error, could not retrieve bookmarks list!")
+        log.error(u"Could not retrieve booksmarks list")
         sys.exit(1)
 
     backup_from_db(conn, "%s/%s" % (args.d, args.f), client)
@@ -211,8 +222,8 @@ def authed_client(args):
     check_auth = client.request("%s/account/verify_credentials" % (instapaper_URL),
                                 method="POST")
     if check_auth[0]['status'] != '200':
-        my_print(u"Error: looks like you're not authenticated...")
-        my_print(check_auth)
+        log.error("Could not retrieve authed client. Did you run `login'?")
+        log.debug(check_auth)
         sys.exit(1)
 
     return client
@@ -224,12 +235,14 @@ def get_user(args):
     resp = client.request("%s/account/verify_credentials" % (instapaper_URL),
                           method="POST")
 
-    my_print(resp)
+    print(resp)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(prog='instacache', description='Cache Instapaper articles')
     parser.add_argument('-f', '--file', action='store', default='~/.instacache',
         help='File in which to store instacache information')
+    parser.add_argument('-l', '--log', action='store', default=1, type=int,
+        help='Log level. 0=critical, 1=error, 2=warning, 3=info, 4=debug.')
     subparsers = parser.add_subparsers(title='command', help='command to issue')
 
     login_parser = subparsers.add_parser('login', help='login and create an oauth token')
@@ -250,4 +263,23 @@ if __name__=='__main__':
     backup_parser.set_defaults(func=backup)
 
     args = parser.parse_args()
+
+    # Set logging
+    log_levels = {4: logging.DEBUG, 3: logging.INFO, 2: logging.WARNING, 1: logging.ERROR,
+            0: logging.CRITICAL}
+    log = logging.getLogger(__name__)
+    log.setLevel(logging.DEBUG)
+
+    # Use debug level for file logging
+    ic_dir = os.path.expanduser(args.file)
+    log_file = "%s/log" % ic_dir
+    l_file_handler = logging.FileHandler(log_file)
+    l_file_handler.setLevel(logging.DEBUG)
+    log.addHandler(l_file_handler)
+
+    # User level for stream handling
+    l_stream_handler = logging.StreamHandler()
+    l_stream_handler.setLevel(log_levels[args.log])
+    log.addHandler(l_stream_handler)
+
     args.func(args)
